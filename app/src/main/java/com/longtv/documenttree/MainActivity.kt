@@ -7,14 +7,20 @@ import android.os.Build
 import android.os.Bundle
 import android.os.storage.StorageManager
 import android.provider.DocumentsContract
+import android.view.View
+import android.widget.Button
+import android.widget.FrameLayout
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.documentfile.provider.DocumentFile
+
 //https://stackoverflow.com/questions/67552027/android-11-action-open-document-tree-set-initial-uri-to-the-documents-folderff
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), ListFileFragment.ListFileListener {
+    private var btnSelectFolder: Button? = null
+    private var listFileFragment: FrameLayout? = null
     companion object {
         private const val CREATE_FILE = 1
         private const val PICK_PDF_FILE = 2
@@ -30,13 +36,26 @@ class MainActivity : AppCompatActivity() {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
-        accessFile()
+        initViews()
+        initListeners()
     }
 
-    private fun accessFile(){
+    private fun initListeners() {
+        btnSelectFolder?.setOnClickListener {
+            accessFile()
+        }
+    }
+
+    private fun initViews() {
+        btnSelectFolder = findViewById(R.id.btnSelectFolder)
+        listFileFragment = findViewById(R.id.list_file)
+    }
+
+    private fun accessFile() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val storageManager = application.getSystemService(Context.STORAGE_SERVICE) as StorageManager
-            val intent =  storageManager.primaryStorageVolume.createOpenDocumentTreeIntent()
+            val storageManager =
+                application.getSystemService(Context.STORAGE_SERVICE) as StorageManager
+            val intent = storageManager.primaryStorageVolume.createOpenDocumentTreeIntent()
 
             //String startDir = "Android";
             //String startDir = "Download"; // Not choosable on an Android 11 device
@@ -92,6 +111,7 @@ class MainActivity : AppCompatActivity() {
         startActivityForResult(intent, PICK_PDF_FILE)
     }
 
+    private var documentFile: DocumentFile? = null
     private var treeUri = ""
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
@@ -110,11 +130,28 @@ class MainActivity : AppCompatActivity() {
                     )
                     this.treeUri = treeUri.toString()
 
-                    val docFile = DocumentFile.fromTreeUri(this, treeUri)
-                    val resultFile = docFile!!.createFile("text/plain", "IMG_20200327_144048.txt")
-                    val x = resultFile;
+                    documentFile = DocumentFile.fromTreeUri(this, treeUri)
+//                    val resultFile = docFile!!.createFile("text/plain", "IMG_20200327_144048.txt")
+//                    val x = resultFile;
+                    grantUriPermission(
+                        packageName,
+                        treeUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    )
+
+
+                    listFileFragment?.visibility = View.VISIBLE
+                    documentFile?.let {
+                        supportFragmentManager?.beginTransaction()
+                            ?.add(R.id.list_file, ListFileFragment(it, this), "")?.commit()
+                    }
                 }
             }
         }
+    }
+
+    override fun itemClick(documentFile: DocumentFile) {
+        supportFragmentManager.beginTransaction()
+            ?.add(R.id.list_file, ListFileFragment(documentFile, this))?.commit()
     }
 }
